@@ -24,6 +24,8 @@ Installation extras:
 """
 
 # Always available - core models
+from importlib.metadata import PackageNotFoundError, version
+
 from .models import (
     BenchmarkConfig,
     BenchmarkInfo,
@@ -46,7 +48,10 @@ from .models import (
     OCICoordinates,
 )
 
-__version__ = "0.1.4"
+try:
+    __version__ = version("eval-hub-sdk")
+except PackageNotFoundError:
+    __version__ = "unknown"
 
 # Base exports - always available
 __all__ = [
