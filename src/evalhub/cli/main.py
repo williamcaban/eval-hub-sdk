@@ -175,8 +175,7 @@ def _build_request_from_flags(
         for key, value in extra_params.items():
             if key in _REQUEST_LEVEL_PARAMS:
                 request_kwargs[key] = value
-            else:
-                parameters[key] = value
+            parameters[key] = value
     if metrics:
         parameters["metrics"] = list(metrics)
     if dataset:

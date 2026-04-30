@@ -478,7 +478,7 @@ class TestEvalRun:
         assert req.num_examples == 5
         assert isinstance(req.num_examples, int)
         params = req.benchmarks[0].parameters
-        assert "num_examples" not in params
+        assert params["num_examples"] == 5
         assert params["temperature"] == 0.7
         assert isinstance(params["temperature"], float)
         assert params["use_cache"] is True
@@ -515,7 +515,7 @@ class TestEvalRun:
         assert result.exit_code == 0
         req = mock_client.jobs.submit.call_args[0][0]
         assert req.num_examples == 10
-        assert "num_examples" not in req.benchmarks[0].parameters
+        assert req.benchmarks[0].parameters["num_examples"] == 10
         assert req.benchmarks[0].parameters["tokenizer"] == "my-tok"
 
     def test_run_json_output(
