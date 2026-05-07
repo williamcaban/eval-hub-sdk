@@ -179,7 +179,12 @@ def _build_request_from_flags(
     if dataset:
         parameters["dataset"] = dataset
     benchmarks = [
-        BenchmarkConfig(id=b, provider_id=provider, parameters=parameters, test_data_ref=test_data_ref)
+        BenchmarkConfig(
+            id=b,
+            provider_id=provider,
+            parameters=parameters,
+            test_data_ref=test_data_ref,
+        )
         for b in benchmark
     ]
     return JobSubmissionRequest(

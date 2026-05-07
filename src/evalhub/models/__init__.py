@@ -3,8 +3,6 @@
 from .api import (
     Benchmark,
     BenchmarkConfig,
-    S3TestDataRef,
-    TestDataRef,
     BenchmarkInfo,
     BenchmarkReference,
     BenchmarkResult,
@@ -43,6 +41,8 @@ from .api import (
     ProviderList,
     QueueConfig,
     Resource,
+    S3TestDataRef,
+    TestDataRef,
 )
 
 __all__ = [
