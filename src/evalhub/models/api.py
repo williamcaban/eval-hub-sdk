@@ -21,6 +21,7 @@ class JobStatus(str, Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
+    PARTIALLY_FAILED = "partially_failed"
 
 
 class EvaluationStatus(str, Enum):
@@ -441,10 +442,62 @@ class EvaluationJob(BaseModel):
         """Get job ID from resource."""
         return self.resource.id
 
+    _TERMINAL_STATES = {
+        JobStatus.COMPLETED,
+        JobStatus.FAILED,
+        JobStatus.CANCELLED,
+        JobStatus.PARTIALLY_FAILED,
+    }
+
+    _BENCHMARK_TERMINAL_STATES = {
+        JobStatus.COMPLETED,
+        JobStatus.FAILED,
+        JobStatus.CANCELLED,
+    }
+
     @property
     def state(self) -> JobStatus:
         """Get job state."""
         return self.status.state if self.status else JobStatus.PENDING
+
+    @property
+    def effective_state(self) -> JobStatus:
+        """Derive effective job state, considering benchmark-level status.
+
+        When the server has not yet promoted individual benchmark completions
+        to the top-level job state, this property infers the overall state
+        from the benchmark statuses.  If every benchmark has reached a
+        terminal state the job is considered completed, partially failed
+        (mix of completed and failed/cancelled), or fully failed.
+        """
+        top = self.state
+        if top in self._TERMINAL_STATES:
+            return top
+
+        if not self.status or not self.status.benchmarks:
+            return top
+
+        bench_states = [b.state for b in self.status.benchmarks]
+        if all(s in self._BENCHMARK_TERMINAL_STATES for s in bench_states):
+            has_failed = any(s == JobStatus.FAILED for s in bench_states)
+            has_cancelled = any(s == JobStatus.CANCELLED for s in bench_states)
+            has_completed = any(s == JobStatus.COMPLETED for s in bench_states)
+            all_failed = all(s == JobStatus.FAILED for s in bench_states)
+            all_cancelled = all(s == JobStatus.CANCELLED for s in bench_states)
+
+            if all_failed:
+                return JobStatus.FAILED
+            if all_cancelled:
+                return JobStatus.CANCELLED
+            if (has_failed or has_cancelled) and has_completed:
+                return JobStatus.PARTIALLY_FAILED
+            if has_failed:
+                return JobStatus.FAILED
+            if has_cancelled:
+                return JobStatus.CANCELLED
+            return JobStatus.COMPLETED
+
+        return top
 
 
 class JobsList(BaseModel):

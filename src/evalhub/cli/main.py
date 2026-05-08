@@ -429,9 +429,10 @@ def eval_run(
             job.id, timeout=timeout, poll_interval=poll_interval
         )
         click.echo(
-            f"Job {job.id} finished with state: {job.state.value}", err=structured
+            f"Job {job.id} finished with state: {job.effective_state.value}",
+            err=structured,
         )
-        if job.state == JobStatus.FAILED:
+        if job.effective_state == JobStatus.FAILED:
             ctx.exit(1)
 
     if structured:
@@ -565,7 +566,12 @@ def _parse_since(value: str) -> datetime:
 
 def _watch_job(client: Any, job_id: str, poll_interval: float) -> None:
     """Poll a job until it reaches a terminal state."""
-    terminal = {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED}
+    terminal = {
+        JobStatus.COMPLETED,
+        JobStatus.FAILED,
+        JobStatus.CANCELLED,
+        JobStatus.PARTIALLY_FAILED,
+    }
     while True:
         job = client.jobs.get(job_id)
         benchmarks_status = ""
@@ -574,7 +580,7 @@ def _watch_job(client: Any, job_id: str, poll_interval: float) -> None:
             benchmarks_status = f" [{done}/{len(job.status.benchmarks)} benchmarks]"
         click.echo(f"\r{job.id}: {job.state.value}{benchmarks_status}", nl=False)
         sys.stdout.flush()
-        if job.state in terminal:
+        if job.effective_state in terminal:
             click.echo()
             _print_job_detail(job)
             return
@@ -919,9 +925,10 @@ def collections_run(
             job.id, timeout=timeout, poll_interval=poll_interval
         )
         click.echo(
-            f"Job {job.id} finished with state: {job.state.value}", err=structured
+            f"Job {job.id} finished with state: {job.effective_state.value}",
+            err=structured,
         )
-        if job.state == JobStatus.FAILED:
+        if job.effective_state == JobStatus.FAILED:
             ctx.exit(1)
 
     if structured:

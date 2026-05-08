@@ -171,12 +171,14 @@ class AsyncJobsResource:
         while True:
             job = await self.get(job_id, tenant=tenant)
 
-            # Check if job is in a terminal state
-            if job.state in [
+            # Check if job is in a terminal state (also considers
+            # benchmark-level completion when the server hasn't promoted it)
+            if job.effective_state in (
                 JobStatus.COMPLETED,
                 JobStatus.FAILED,
                 JobStatus.CANCELLED,
-            ]:
+                JobStatus.PARTIALLY_FAILED,
+            ):
                 return job
 
             if timeout and (time.time() - start_time) > timeout:
@@ -334,12 +336,14 @@ class SyncJobsResource:
         while True:
             job = self.get(job_id, tenant=tenant)
 
-            # Check if job is in a terminal state
-            if job.state in [
+            # Check if job is in a terminal state (also considers
+            # benchmark-level completion when the server hasn't promoted it)
+            if job.effective_state in (
                 JobStatus.COMPLETED,
                 JobStatus.FAILED,
                 JobStatus.CANCELLED,
-            ]:
+                JobStatus.PARTIALLY_FAILED,
+            ):
                 return job
 
             if timeout and (time.time() - start_time) > timeout:

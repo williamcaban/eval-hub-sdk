@@ -226,6 +226,121 @@ class TestEvaluationJob:
         assert job.collection.id == "healthcare_v1"
 
 
+class TestEffectiveState:
+    """Test cases for EvaluationJob.effective_state property."""
+
+    def _make_job(
+        self,
+        job_state: JobStatus,
+        benchmark_states: list[JobStatus] | None = None,
+    ) -> EvaluationJob:
+        from evalhub.models.api import (
+            BenchmarkConfig,
+            BenchmarkStatus,
+            EvaluationJobResource,
+            EvaluationJobStatus,
+        )
+
+        now = datetime.now(UTC)
+        benchmarks_status = []
+        if benchmark_states is not None:
+            for i, s in enumerate(benchmark_states):
+                benchmarks_status.append(
+                    BenchmarkStatus(
+                        id=f"bench_{i}",
+                        provider_id="test_provider",
+                        benchmark_index=i,
+                        status=s,
+                    )
+                )
+        return EvaluationJob(
+            resource=EvaluationJobResource(
+                id="job_eff", tenant="default", created_at=now
+            ),
+            name="effective-state-test",
+            status=EvaluationJobStatus(state=job_state, benchmarks=benchmarks_status),
+            model=ModelConfig(url="http://localhost:8000/v1", name="m"),
+            benchmarks=[
+                BenchmarkConfig(id="b", provider_id="test_provider", parameters={})
+            ],
+        )
+
+    def test_terminal_top_level_state_is_returned_directly(self) -> None:
+        job = self._make_job(JobStatus.COMPLETED)
+        assert job.effective_state == JobStatus.COMPLETED
+
+    def test_running_with_no_benchmarks_stays_running(self) -> None:
+        job = self._make_job(JobStatus.RUNNING)
+        assert job.effective_state == JobStatus.RUNNING
+
+    def test_running_with_all_benchmarks_completed(self) -> None:
+        """The core bug scenario: server says running, but all benchmarks done."""
+        job = self._make_job(
+            JobStatus.RUNNING,
+            [JobStatus.COMPLETED, JobStatus.COMPLETED],
+        )
+        assert job.effective_state == JobStatus.COMPLETED
+
+    def test_running_with_some_benchmarks_still_pending(self) -> None:
+        job = self._make_job(
+            JobStatus.RUNNING,
+            [JobStatus.COMPLETED, JobStatus.PENDING],
+        )
+        assert job.effective_state == JobStatus.RUNNING
+
+    def test_running_with_one_benchmark_failed(self) -> None:
+        job = self._make_job(
+            JobStatus.RUNNING,
+            [JobStatus.COMPLETED, JobStatus.FAILED],
+        )
+        assert job.effective_state == JobStatus.PARTIALLY_FAILED
+
+    def test_running_with_all_benchmarks_failed(self) -> None:
+        job = self._make_job(
+            JobStatus.RUNNING,
+            [JobStatus.FAILED, JobStatus.FAILED],
+        )
+        assert job.effective_state == JobStatus.FAILED
+
+    def test_running_with_one_benchmark_cancelled(self) -> None:
+        job = self._make_job(
+            JobStatus.RUNNING,
+            [JobStatus.COMPLETED, JobStatus.CANCELLED],
+        )
+        assert job.effective_state == JobStatus.PARTIALLY_FAILED
+
+    def test_running_with_all_benchmarks_cancelled(self) -> None:
+        job = self._make_job(
+            JobStatus.RUNNING,
+            [JobStatus.CANCELLED, JobStatus.CANCELLED],
+        )
+        assert job.effective_state == JobStatus.CANCELLED
+
+    def test_partially_failed_from_server_is_terminal(self) -> None:
+        job = self._make_job(JobStatus.PARTIALLY_FAILED)
+        assert job.effective_state == JobStatus.PARTIALLY_FAILED
+
+    def test_pending_with_no_status(self) -> None:
+        from evalhub.models.api import (
+            BenchmarkConfig,
+            EvaluationJobResource,
+        )
+
+        now = datetime.now(UTC)
+        job = EvaluationJob(
+            resource=EvaluationJobResource(
+                id="job_none", tenant="default", created_at=now
+            ),
+            name="no-status",
+            status=None,
+            model=ModelConfig(url="http://localhost:8000/v1", name="m"),
+            benchmarks=[
+                BenchmarkConfig(id="b", provider_id="test_provider", parameters={})
+            ],
+        )
+        assert job.effective_state == JobStatus.PENDING
+
+
 class TestCollectionRef:
     """Test cases for CollectionRef model."""
 
@@ -743,6 +858,7 @@ class TestEnums:
         assert JobStatus.COMPLETED == "completed"
         assert JobStatus.FAILED == "failed"
         assert JobStatus.CANCELLED == "cancelled"
+        assert JobStatus.PARTIALLY_FAILED == "partially_failed"
 
     def test_evaluation_status_enum(self) -> None:
         """Test EvaluationStatus enum values."""
